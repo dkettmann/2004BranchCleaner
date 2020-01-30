@@ -1,0 +1,103 @@
+#!/usr/bin/perl
+#This Program will Delete the BRI0/0 and Serial 1/1 interfaces from config
+#And also translate "!" to blankline
+$ipexp = '\d+\.\d+\.\d+\.\d+';
+
+
+
+if ($ARGV[0])
+	{
+	$branch = $ARGV[0];
+	chomp($branch);
+	}
+else
+	{
+	die "Need branch number as argument!\n";
+	}
+
+
+$infile = "/tftpboot/cnbr$branch-confg";
+open(OUT, ">/home/radar/dbfiles/single/$branch.clean");
+open(IN, "$infile");
+$printflag = "1";
+foreach $line (<IN>)
+	{
+
+###########This part ensures ip routes are in order!!!
+#
+	$halt = "";
+	if ($line =~ /ip route $ipexp $ipexp $ipexp/)
+		{
+		if ($line =~ /\s150\s/) #if line is 150 weight and non-weighted
+					#has not yet been done, wait.
+			{
+			if ($firstdone == "0")
+				{
+				$wait = $line;					
+				$halt = "1";
+				}
+			}
+		if ($line !~ /\s150\s/) #if line is NW set done flag to 1
+					#and print along with $wait if xists
+			{
+			$firstdone = "1";
+			if ($wait)
+				{
+				$line = $line . $wait;
+				}
+			}
+		}
+	if ($halt == "1")
+		{
+		next;
+		}
+#
+###############End Part For Ip Routes
+
+	if ($line =~ /Last configuration/ || $line =~ /NVRAM config/)
+		{
+		next;
+		}
+	if ($line =~ /NORAS5300A/ || $line =~ /arp frame-relay/)
+		{
+		next;
+		}
+#"No configuration change since last restart" line is causing problems, whack it
+ 
+
+	if ($line =~ /configuration change/)
+		{
+		next;
+		}
+	if ($line =~ /interface Serial1\/1/)
+		{
+		$printflag = "0";
+		}
+	if ($line =~ /interface BRI[0,1]\/0/)
+		{
+		$printflag = "0";
+		}
+	if ($line =~ /interface Serial0\/2/)
+		{
+		$printflag = "0";
+		}
+	if ($line =~ /interface Serial1\/2/)
+                {
+                $printflag = "0";
+                }
+	if ($line =~ /!/)
+		{
+		$printflag = "1";
+		}
+	if ($line =~ /^!/ || $line =~ /^\s!/)
+		{
+		if ($line !~ m/[a-zA-Z]/)
+			{
+			$line = "\n";
+			}
+		}
+	if ($printflag == "1")
+		{
+		print OUT $line;
+		}
+	}
